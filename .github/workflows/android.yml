@@ -1,3 +1,6 @@
+cd ~/sudip-car-racing || exit 1
+
+cat > .github/workflows/android.yml <<'EOF'
 name: Build SUDIP 3D CAR RACING APK
 
 on:
@@ -23,7 +26,9 @@ jobs:
           java-version: '17'
 
       - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
+        with:
+          packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -39,3 +44,7 @@ jobs:
           name: SUDIP-3D-CAR-RACING-APK
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
+EOF
+
+echo "===== WORKFLOW CHECK ====="
+cat .github/workflows/android.yml
