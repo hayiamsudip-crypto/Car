@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>SUDIP 3D CAR RACING</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#101923;color:white;font-family:Arial,sans-serif;overflow:hidden}
+canvas{display:block}
+#hud{position:fixed;top:12px;left:12px;right:12px;display:flex;justify-content:space-between;pointer-events:none}
+.panel{background:#101923dd;border:1px solid #7894a8;border-radius:12px;padding:10px}
+button{border:1px solid #a7c5dc;border-radius:14px;background:#17344a;color:white;padding:16px;font-size:17px;touch-action:none}
+#controls{position:fixed;bottom:18px;left:12px;right:12px;display:flex;justify-content:space-between;gap:8px}
+#message{position:fixed;top:40%;left:10%;width:80%;padding:20px;background:#101923ed;text-align:center;border-radius:16px;display:none}
+</style>
+</head>
+<body>
+<div id="hud">
+ <div class="panel">SUDIP RACING<br><b id="speed">0 km/h</b></div>
+ <div class="panel">DISTANCE<br><b id="distance">0 / 500 m</b></div>
+</div>
+<div id="controls">
+ <div><button id="left">◀</button><button id="right">▶</button></div>
+ <div><button id="brake">BRAKE</button><button id="gas">GAS ▲</button></div>
+</div>
+<div id="message"><h2 id="result"></h2><p id="details"></p><button onclick="location.reload()">RACE AGAIN</button></div>
+<script type="importmap">
+{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js"}}
+</script>
+<script type="module">
+import * as THREE from 'three';
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x86cef0);
+scene.fog=new THREE.Fog(0x86cef0,60,180);
+const camera=new THREE.PerspectiveCamera(65,innerWidth/innerHeight,.1,300);
+const renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));
+renderer.setSize(innerWidth,innerHeight);
+document.body.prepend(renderer.domElement);
+scene.add(new THREE.HemisphereLight(0xffffff,0x506040,2));
+const sun=new THREE.DirectionalLight(0xffffff,2);sun.position.set(-10,20,10);scene.add(sun);
+const material=c=>new THREE.MeshStandardMaterial({color:c});
+const ground=new THREE.Mesh(new THREE.PlaneGeometry(250,700),material(0x39934b));
+ground.rotation.x=-Math.PI/2;ground.position.z=-300;scene.add(ground);
+const asphalt=new THREE.Mesh(new THREE.PlaneGeometry(10,700),material(0x30353d));
+asphalt.rotation.x=-Math.PI/2;asphalt.position.z=-300;scene.add(asphalt);
+for(let z=5;z>-680;z-=10){
+ const stripe=new THREE.Mesh(new THREE.BoxGeometry(.12,.03,4),material(0xffffff));
+ stripe.position.set(0,.03,z);scene.add(stripe);
+}
+function car(color){
+ const g=new THREE.Group();
+ const body=new THREE.Mesh(new THREE.BoxGeometry(1.35,.5,2.4),material(color));
+ body.position.y=.65;g.add(body);
+ const cabin=new THREE.Mesh(new THREE.BoxGeometry(.9,.48,1.1),material(0x1a526d));
+ cabin.position.set(0,1.08,0);g.add(cabin);
+ for(const x of [-.72,.72])for(const z of [-.75,.75]){
+  const w=new THREE.Mesh(new THREE.CylinderGeometry(.26,.26,.18,12),material(0x111111));
+  w.rotation.z=Math.PI/2;w.position.set(x,.34,z);g.add(w);
+ }
+ scene.add(g);return g;
+}
+const player=car(0xef3340),rival=car(0x2689ff);
+player.position.set(-1,0,0);rival.position.set(1.4,0,-15);
+for(let z=-500;z>-650;z-=3){
+ const post=new THREE.Mesh(new THREE.BoxGeometry(.4,.4,.4),material(0xffffff));
+ post.position.set(0,.25,z);scene.add(post);
+}
+const state={gas:false,brake:false,left:false,right:false};
+function bind(id,key){
+ const el=document.getElementById(id);
+ el.onpointerdown=e=>{e.preventDefault();state[key]=true;};
+ for(const ev of ['pointerup','pointercancel','pointerleave'])
+  el.addEventListener(ev,()=>state[key]=false);
+}
+Object.keys(state).forEach(k=>bind(k,k));
+let progress=0,rivalProgress=15,speed=0,ended=false;
+const clock=new THREE.Clock();
+function endRace(){
+ ended=true;
+ document.getElementById('result').textContent=progress>=rivalProgress?'🏆 YOU WIN!':'RIVAL WINS!';
+ document.getElementById('details').textContent=`You: ${Math.floor(progress)} m · Rival: ${Math.floor(rivalProgress)} m`;
+ document.getElementById('message').style.display='block';
+}
+function frame(){
+ requestAnimationFrame(frame);
+ const dt=Math.min(clock.getDelta(),.04);
+ if(!ended){
+  speed=state.gas?Math.min(45,speed+20*dt):Math.max(0,speed-4*dt);
+  if(state.brake)speed=Math.max(0,speed-35*dt);
+  const steer=(state.right?1:0)-(state.left?1:0);
+  player.position.x=THREE.MathUtils.clamp(player.position.x+steer*dt*(2+speed*.08),-3.8,3.8);
+  progress=Math.min(500,progress+speed*dt);
+  rivalProgress=Math.min(500,rivalProgress+24*dt);
+  player.position.z=-progress;rival.position.z=-rivalProgress;
+  rival.position.x=1.5+Math.sin(rivalProgress*.025)*.6;
+  if(progress>=500||rivalProgress>=500)endRace();
+ }
+ document.getElementById('speed').textContent=Math.round(speed*3.6)+' km/h';
+ document.getElementById('distance').textContent=Math.floor(progress)+' / 500 m';
+ camera.position.lerp(new THREE.Vector3(player.position.x,4,player.position.z+8),.1);
+ camera.lookAt(player.position.x,.5,player.position.z-8);
+ renderer.render(scene,camera);
+}
+addEventListener('resize',()=>{
+ camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();
+ renderer.setSize(innerWidth,innerHeight);
+});
+frame();
+</script>
+</body>
+</html>
